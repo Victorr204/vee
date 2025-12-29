@@ -4,7 +4,7 @@ export default function Terms() {
       <h1>Terms of Service</h1>
 
       <p>
-        By accessing WAEC & NECO Prep, you agree to these Terms of Service.
+        By accessing Exam Sharp School, you agree to these Terms of Service.
       </p>
 
       <h3>Educational Purpose</h3>
