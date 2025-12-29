@@ -1,10 +1,25 @@
 import { useEffect, useState } from "react";
+import { setSEO } from "../utils/seo";
+
+/* ================= ONLINE TRACKING CONSTANTS (ADDED) ================= */
+const ONLINE_KEY = "community_online_users";
+const USER_ID = "user_" + Math.random().toString(36).slice(2);
+const ONLINE_TIMEOUT = 2 * 60 * 1000; // 2 minutes
 
 export default function Community() {
   const [posts, setPosts] = useState([]);
   const [text, setText] = useState("");
 
+  /* ================= ONLINE COUNT STATE (ADDED) ================= */
+  const [onlineCount, setOnlineCount] = useState(1);
+
   useEffect(() => {
+    setSEO({
+      title: "EXAM SHARP SHCOOL Community discussion - WAEC & NECO Prep",
+      description:
+        "Student engage in discussion, share tips, and motivate each other in our community forum.",
+    });
+
     const stored = JSON.parse(localStorage.getItem("community_posts")) || [];
     const now = Date.now();
 
@@ -13,6 +28,36 @@ export default function Community() {
 
     setPosts(filtered);
     localStorage.setItem("community_posts", JSON.stringify(filtered));
+  }, []);
+
+  /* ================= ONLINE PRESENCE EFFECT (ADDED) ================= */
+  useEffect(() => {
+    const updateOnlineStatus = () => {
+      const now = Date.now();
+      const stored = JSON.parse(localStorage.getItem(ONLINE_KEY)) || {};
+
+      stored[USER_ID] = now;
+
+      // Remove inactive users
+      Object.keys(stored).forEach((id) => {
+        if (now - stored[id] > ONLINE_TIMEOUT) {
+          delete stored[id];
+        }
+      });
+
+      localStorage.setItem(ONLINE_KEY, JSON.stringify(stored));
+      setOnlineCount(Object.keys(stored).length || 1);
+    };
+
+    updateOnlineStatus();
+    const interval = setInterval(updateOnlineStatus, 30000); // every 30s
+
+    return () => {
+      const stored = JSON.parse(localStorage.getItem(ONLINE_KEY)) || {};
+      delete stored[USER_ID];
+      localStorage.setItem(ONLINE_KEY, JSON.stringify(stored));
+      clearInterval(interval);
+    };
   }, []);
 
   const addPost = () => {
@@ -44,6 +89,11 @@ export default function Community() {
       <h2>Student Community</h2>
       <p>Discuss questions, share tips, motivate each other.</p>
 
+      {/* ================= ONLINE COUNT DISPLAY (ADDED) ================= */}
+      <p style={{ fontWeight: "bold", color: "#10b981", marginBottom: 20 }}>
+        🟢 {onlineCount} student{onlineCount > 1 ? "s" : ""} online
+      </p>
+
       <div style={styles.wrapper}>
         {/* Input Area */}
         <div style={styles.inputArea}>
@@ -72,6 +122,7 @@ export default function Community() {
   );
 }
 
+/* ================= STYLES (UNCHANGED) ================= */
 const styles = {
   container: {
     maxWidth: 900,
@@ -85,13 +136,13 @@ const styles = {
     flexWrap: "wrap",
   },
   inputArea: {
-    flex: "1 1 300px", // grows and shrinks
-    minWidth: 250,     // minimum width
+    flex: "1 1 300px",
+    minWidth: 250,
     display: "flex",
     flexDirection: "column",
   },
   posts: {
-    flex: "2 1 400px", // posts take more space
+    flex: "2 1 400px",
     minWidth: 300,
   },
   textarea: {
@@ -118,7 +169,6 @@ const styles = {
     wordBreak: "break-word",
   },
 
-  // Responsive adjustments
   '@media (max-width: 768px)': {
     wrapper: {
       flexDirection: "column",
@@ -131,4 +181,3 @@ const styles = {
     },
   },
 };
-
