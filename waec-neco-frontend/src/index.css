@@ -13,6 +13,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+@keyframes scrollLeft {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+
 a {
   font-weight: 500;
   color: #5c5d75;

@@ -28,6 +28,12 @@ export default function Admin() {
   const [answerText, setAnswerText] = useState("");
   const [images, setImages] = useState([]);
 
+
+  /* ----------------ADMIN NOTIFICATION ---------------- */
+  const [message, setMessage] = useState("");
+  const [duration, setDuration] = useState(60);
+  const [active, setActive] = useState(null);
+
   /* ---------------- FORM (CBT) ---------------- */
   const [cbtExam, setCbtExam] = useState("WAEC");
   const [cbtSubject, setCbtSubject] = useState("");
@@ -42,6 +48,32 @@ export default function Admin() {
   });
   const [cbtQuestions, setCbtQuestions] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
+
+
+  /* =========Notifications================= */
+   useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem("top_notification"));
+    setActive(stored);
+  }, []);
+
+  const postNotification = () => {
+    if (!message.trim()) return alert("Message required");
+
+    const expiresAt = Date.now() + duration * 60 * 1000;
+
+    const data = { message, expiresAt };
+    localStorage.setItem("top_notification", JSON.stringify(data));
+    setActive(data);
+    setMessage("");
+
+    alert("Notification posted");
+  };
+
+  const deleteNotification = () => {
+    localStorage.removeItem("top_notification");
+    setActive(null);
+  };
+
 
   /* ---------------- LOAD ---------------- */
   useEffect(() => {
@@ -168,6 +200,40 @@ export default function Admin() {
   return (
     <div style={{ maxWidth: 1000, margin: "auto", padding: 20 }}>
       <h2>Admin Dashboard</h2>
+
+      {/* ================= TOP NOTIFICATION ================= */}<h3>Top Notification</h3>
+
+      <textarea
+        placeholder="Type notification message..."
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        style={styles.textarea}
+      />
+
+      <label>
+        Duration (minutes):
+        <input
+          type="number"
+          min={1}
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
+        />
+      </label>
+
+      <button onClick={postNotification} style={styles.btn}>
+        Post Notification
+      </button>
+
+      {active && (
+        <>
+          <p style={{ marginTop: 10 }}>
+            <b>Active:</b> {active.message}
+          </p>
+          <button onClick={deleteNotification} style={styles.delete}>
+            Delete Notification
+          </button>
+        </>
+      )}
 
       {/* ================= ACTIVATION CODES ================= */}
       <section style={box}>
@@ -316,3 +382,36 @@ const row = { display:"flex", gap:10, flexWrap:"wrap" };
 const textarea = { width:"100%", padding:10 };
 const card = { background:"#363232ff", padding:15, borderRadius:8, marginBottom:15 };
 const answerBox = { background:"#242924ff", padding:10, borderRadius:5, marginTop:10 };
+
+
+const styles = {
+  box: {
+    background: "#111827",
+    padding: 20,
+    borderRadius: 10,
+    maxWidth: 500,
+  },
+  textarea: {
+    width: "100%",
+    height: 80,
+    marginBottom: 10,
+    padding: 10,
+  },
+  btn: {
+    padding: "10px 15px",
+    background: "#2563eb",
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
+  delete: {
+    marginTop: 10,
+    background: "#dc2626",
+    color: "#fff",
+    padding: "8px 12px",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
+};

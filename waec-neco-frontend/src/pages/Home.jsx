@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getStoredQuestions } from "../utils/storage";
 import { Link } from "react-router-dom";
 import { setSEO } from "../utils/seo";
+import TopNotification from "../components/TopNotification";
 import banner from "../assets/banner.png";
 import logo from "../assets/logo.png";
 
@@ -54,6 +55,7 @@ export default function Home() {
 
   return (
     <div style={styles.page}>
+      
       {/* ================= HEADER ================= */}
       <header style={styles.header}>
         <h2 style={{ margin: 0 }}> <img src={logo} style={styles.logo} alt="logo" /> </h2>
@@ -67,7 +69,7 @@ export default function Home() {
 
       {/* ================= TOP AD ================= */}
       <div style={styles.adBanner}>
-        
+        <TopNotification />
       </div>
 
       {/* ================= HERO ================= */}
@@ -185,7 +187,7 @@ export default function Home() {
   </p>
 
         <p style={{ marginTop: 10 }}>
-          © {new Date().getFullYear()} WAEC & NECO Prep ·{" "}
+          © {new Date().getFullYear()} Exam Sharp School ·{" "}
           <Link to="/admin">Admin</Link>
         </p>
       </footer>

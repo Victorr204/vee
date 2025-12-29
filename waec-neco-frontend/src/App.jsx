@@ -42,7 +42,7 @@ export default function App() {
         <Route path="/community" element={<Community />} />
         <Route path="/test" element={<Test />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/term" element={<Terms />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/about" element={<About />} />
       </Routes>
