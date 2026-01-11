@@ -1,15 +1,26 @@
-import axios from "axios";
+const API_BASE = import.meta.env.VITE_API_BASE;
 
-const api = axios.create({
-  baseURL: "http://localhost:5000/api",
-});
+function getToken() {
+  return localStorage.getItem("token");
+}
 
-api.interceptors.request.use((config) => {
-  const code = localStorage.getItem("activationCode");
-  if (code) {
-    config.headers["x-activation-code"] = code;
+export async function apiFetch(path, options = {}) {
+  const token = getToken();
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    },
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.message || "Request failed");
   }
-  return config;
-});
 
-export default api;
+  return data;
+}

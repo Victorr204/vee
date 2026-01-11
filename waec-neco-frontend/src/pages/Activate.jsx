@@ -1,3 +1,4 @@
+// Activate.jsx
 import { useState } from "react";
 import { activateTest } from "../utils/auth";
 import { useNavigate } from "react-router-dom";
@@ -6,22 +7,25 @@ export default function Activate() {
   const [code, setCode] = useState("");
   const navigate = useNavigate();
 
-  const submit = () => {
-    const codes =
-      JSON.parse(localStorage.getItem("activation_codes")) || [];
+ const submit = async () => {
+  const res = await fetch("/api/public/activate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
 
-    if (codes.includes(code.toUpperCase())) {
-      activateTest();
+  const data = await res.json();
 
-      const updated = codes.filter((c) => c !== code.toUpperCase());
-      localStorage.setItem("activation_codes", JSON.stringify(updated));
+  if (!res.ok) {
+    alert(data.error || "Invalid activation code");
+    return;
+  }
 
-      alert("Activation successful!");
-      navigate("/test");
-    } else {
-      alert("Invalid activation code");
-    }
-  };
+  activateTest(data.expiresAt); // backend controlled
+  alert("Activation successful!");
+  navigate("/test");
+};
+
 
   return (
     <div style={{ maxWidth: 400, margin: "auto", padding: 20 }}>

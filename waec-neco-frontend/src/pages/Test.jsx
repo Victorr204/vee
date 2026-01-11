@@ -1,6 +1,6 @@
+//test page
 import { useEffect, useState, useRef } from "react";
-import { getStoredQuestions } from "../utils/storage";
-import { isTestActivated } from "../utils/auth";
+import { apiFetch } from "../services/api";
 import { useNavigate } from "react-router-dom";
 import { setSEO } from "../utils/seo";
 
@@ -32,35 +32,47 @@ export default function Test() {
   const [calcInput, setCalcInput] = useState("");
 
   /* ----------------- SEO + LOAD ----------------- */
-  useEffect(() => {
-    setSEO({
-      title: "EXAM SHARP SCHOOL CBT Test | WAEC & NECO",
-      description: "Interactive CBT system for WAEC & NECO past questions",
-    });
+ useEffect(() => {
+  setSEO({
+    title: "EXAM SHARP SCHOOL CBT Test | WAEC & NECO",
+    description: "Interactive CBT system for WAEC & NECO past questions",
+  });
 
-    if (!isTestActivated()) {
-      navigate("/activate", { replace: true });
+  async function loadTests() {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      navigate("/login", { replace: true });
       return;
     }
 
-    const stored = getStoredQuestions();
+    try {
+      // validate user
+      await apiFetch("/api/auth/me");
 
-    const cbtQuestions = stored.filter(
-      (q) => (q.options && q.options.length) || (q.type === "Theory" && q.answer)
-    );
+      // fetch CBT questions
+      const data = await apiFetch("/api/public/tests");
 
-    setAllQuestions(cbtQuestions);
-    setFilteredQuestions(cbtQuestions);
-  }, []);
+      setAllQuestions(data);
+      setFilteredQuestions(data);
+    } catch (err) {
+      console.error(err);
+      navigate("/login", { replace: true });
+    }
+  }
+
+  loadTests();
+}, []);
+
+
   /* =======AI EXPLANATION FUNCTION ======= */
   const getAIExplanation = async (q) => {
-  const res = await fetch("https://waec-neco-backend.vercel.app/api/ai/explain", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      question: q.text,
-      options: q.options,
-      correctAnswer: q.answer,
+apiFetch("/api/ai", {
+  method: "POST",
+  body: JSON.stringify({
+    question: q.text,
+    options: q.options,
+    correctAnswer: q.answer,
     }),
   });
 
@@ -268,7 +280,7 @@ export default function Test() {
           const correctIndex = optionLetters.indexOf(
             q.answer?.toUpperCase()
           );
-          const userIndex = q.options?.indexOf(answers[q.id]);
+          const userIndex = q.options?.indexOf(answers[q._id]);
 
           return (
             <div
@@ -289,7 +301,7 @@ export default function Test() {
               <p>
                 <b>Your Answer:</b>{" "}
                 {userIndex > -1
-                  ? `${optionLetters[userIndex]}. ${answers[q.id]}`
+                  ? `${optionLetters[userIndex]}. ${answers[q._id]}`
                   : "No Answer"}
               </p>
               <p>
@@ -299,7 +311,7 @@ export default function Test() {
 
               <p>
                 <b>Explanation:</b>{" "}
-                {aiExplanations[q.id] || "Click 'Show Explanation' to view"}
+                {aiExplanations[q._id] || "Click 'Show Explanation' to view"}
               </p>
 
               {mode === "Practice" && !aiExplanations[q.id] && (
@@ -351,7 +363,7 @@ export default function Test() {
             return (
               <button
                 key={i}
-                onClick={() => handleAnswer(q.id, opt)}
+                onClick={() => handleAnswer(q._id, opt)}
                 style={{ ...styles.optionBtn, backgroundColor: bg }}
               >
                 {optionLetters[i]}. {opt}
@@ -370,9 +382,9 @@ export default function Test() {
       Show Explanation
     </button>
 
-    {aiExplanations[q.id] && (
+    {aiExplanations[q._id] && (
       <div style={styles.explanation}>
-        {aiExplanations[q.id]}
+        {aiExplanations[q._id]}
       </div>
     )}
   </>
@@ -394,7 +406,7 @@ export default function Test() {
   );
 }
 
-/* ----------------- STYLES (UNCHANGED) ----------------- */
+/* ----------------- STYLES ----------------- */
 const styles = {
   container: {
     maxWidth: 900,

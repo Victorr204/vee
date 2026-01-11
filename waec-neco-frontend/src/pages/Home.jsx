@@ -1,5 +1,6 @@
+//home page
 import { useEffect, useState } from "react";
-import { getStoredQuestions } from "../utils/storage";
+import { fetchPublicQuestions } from "../utils/api";
 import { Link } from "react-router-dom";
 import { setSEO } from "../utils/seo";
 import TopNotification from "../components/TopNotification";
@@ -8,29 +9,42 @@ import logo from "../assets/logo.png";
 
 
 export default function Home() {
-  const [questions, setQuestions] = useState([]); // FREE ONLY (base)
-  const [filtered, setFiltered] = useState([]);  // FILTERED VIEW
-
-  const [showCount, setShowCount] = useState(3); // number of questions initially
-
+  const [questions, setQuestions] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [showCount, setShowCount] = useState(3);
   const [examFilter, setExamFilter] = useState("ALL");
   const [subjectFilter, setSubjectFilter] = useState("ALL");
+  const [isLoggedIn, setIsLoggedIn] = useState(
+  Boolean(localStorage.getItem("token"))
+);
 
   /* ================= LOAD FREE QUESTIONS ONLY ================= */
-  useEffect(() => {
-     setSEO({
+ useEffect(() => {
+  setSEO({
     title: "EXAM SHARP SCHOOL WAEC & NECO Past Questions (Free & Practice Tests)",
     description:
       "Study WAEC & NECO past questions for free. Practice tests available. Community discussion included.",
   });
-  
 
-    const all = getStoredQuestions();
-    const freeOnly = all.filter(q => q.isTest === false);
+  async function loadQuestions() {
+    try {
+      const data = await fetchPublicQuestions();
 
-    setQuestions(freeOnly);
-    setFiltered(freeOnly);
-  }, []);
+      // backend already filters free, but double-safety
+      const freeOnly = data.filter(q => q.isTest === false);
+
+      setQuestions(freeOnly);
+      setFiltered(freeOnly);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  loadQuestions();
+}, []);
+
+
+
 
   /* ================= APPLY FILTER ================= */
   const applyFilter = (exam, subject) => {
@@ -61,10 +75,30 @@ export default function Home() {
         <h2 style={{ margin: 0 }}> <img src={logo} style={styles.logo} alt="logo" /> </h2>
 
         <nav style={styles.nav}>
-          <Link to="/" style={styles.navLink}>Home</Link>
-          <Link to="/test" style={styles.navLink}>Practice Test</Link>
-          <Link to="/community" style={styles.navLink}>Community</Link>
-        </nav>
+  <Link to="/" style={styles.navLink}>Home</Link>
+  <Link to="/test" style={styles.navLink}>Practice Test</Link>
+  <Link to="/community" style={styles.navLink}>Community</Link>
+
+  {!isLoggedIn ? (
+    <>
+      <Link to="/login" style={styles.navLink}>Login</Link>
+      <Link to="/register" style={styles.navLink}>Register</Link>
+    </>
+  ) : (
+    <button
+      style={styles.logoutBtn}
+      onClick={() => {
+  localStorage.clear();
+  setIsLoggedIn(false);
+  navigate("/");
+}}
+
+    >
+      Logout
+    </button>
+  )}
+</nav>
+
       </header>
 
       {/* ================= TOP AD ================= */}
@@ -112,7 +146,7 @@ export default function Home() {
 
         {/* ✅ SHOW LIMITED QUESTIONS */}
         {filtered.slice(0, showCount).map((q, index) => (
-          <div key={q.id} style={styles.card}>
+          <div key={q._id} style={styles.card}>
             <h3>{index + 1}. {q.subject} — {q.exam} {q.type} ({q.year})</h3>
             <p style={{ whiteSpace: "pre-line" }}>{q.text}</p>
             {q.images?.map((img, i) => <img key={i} src={img} alt="question" style={styles.image} />)}
@@ -335,5 +369,15 @@ const styles = {
   logo:{
     width: '40%',
     height: 'auto',
-  }
+  },
+  logoutBtn: {
+  background: "transparent",
+  border: "1px solid #ef4444",
+  color: "#ef4444",
+  padding: "6px 10px",
+  borderRadius: 6,
+  cursor: "pointer",
+  fontSize: 13,
+},
+
 };

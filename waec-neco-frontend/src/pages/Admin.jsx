@@ -1,18 +1,15 @@
+//admin page
 import { useEffect, useState } from "react";
 import { SUBJECTS, PRACTICAL_SUBJECTS } from "../data/config";
-import {
-  getStoredQuestions,
-  saveQuestions,
-  getActivationCodes,
-  saveActivationCodes,
-} from "../utils/storage";
+import { apiFetch } from "../services/api";
 
-const ADMIN_PIN = "09037306845";
+
 
 export default function Admin() {
   /* ---------------- AUTH ---------------- */
-  const [pin, setPin] = useState("");
-  const [ok, setOk] = useState(false);
+  const [email, setEmail] = useState("");
+const [password, setPassword] = useState("");
+const [ok, setOk] = useState(false);
 
   /* ---------------- DATA ---------------- */
   const [questions, setQuestions] = useState([]);
@@ -49,52 +46,70 @@ export default function Admin() {
   const [cbtQuestions, setCbtQuestions] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
 
+  
+
 
   /* =========Notifications================= */
-   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("top_notification"));
-    setActive(stored);
-  }, []);
+const postNotification = async () => {
+  const res = await apiFetch("/api/admin/notifications", {
+    method: "POST",
+    body: JSON.stringify({ message, duration }),
+  });
 
-  const postNotification = () => {
-    if (!message.trim()) return alert("Message required");
+  setActive(res);
+  setMessage("");
+};
 
-    const expiresAt = Date.now() + duration * 60 * 1000;
+/* ---------------- DELETE NOTIFICATION ---------------- */
+ const deleteNotification = async () => {
+  await apiFetch("/api/admin/notifications", { method: "DELETE" });
+  setActive(null);
+};
 
-    const data = { message, expiresAt };
-    localStorage.setItem("top_notification", JSON.stringify(data));
-    setActive(data);
-    setMessage("");
-
-    alert("Notification posted");
-  };
-
-  const deleteNotification = () => {
-    localStorage.removeItem("top_notification");
-    setActive(null);
-  };
 
 
   /* ---------------- LOAD ---------------- */
   useEffect(() => {
-    setQuestions(getStoredQuestions());
-    setCodes(getActivationCodes());
-    setAllQuestions(getStoredQuestions());
-  }, []);
+  async function loadAdminData() {
+    try {
+      const q = await apiFetch("/api/admin/questions");
+      const c = await apiFetch("/api/admin/codes");
+      const n = await apiFetch("/api/admin/notifications");
+
+      setQuestions(q);
+      setAllQuestions(q);
+      setCodes(c);
+      setActive(n);
+    } catch {
+      alert("Unauthorized");
+      localStorage.removeItem("token");
+      window.location.reload();
+    }
+  }
+
+  loadAdminData();
+}, []);
+  
 
   /* ---------------- ACTIVATION CODES ---------------- */
-  const generateCode = () => {
-    const code = Math.random().toString(36).substring(2, 7).toUpperCase();
-    const updated = [...codes, code];
-    setCodes(updated);
-    saveActivationCodes(updated);
-    alert("Generated Code: " + code);
-  };
-  const deleteCode = (code) => {
-    const updated = codes.filter((c) => c !== code);
-    setCodes(updated);
-    saveActivationCodes(updated);
-  };
+ const generateCode = async () => {
+  const res = await apiFetch("/api/admin/generate-code", {
+    method: "POST",
+  });
+
+  setCodes(prev => [...prev, res.code]);
+};
+
+
+/* ---------------- DELETE CODE ---------------- */
+ const deleteCode = async (code) => {
+  await apiFetch(`/api/admin/generate-code?code=${code}`, {
+    method: "DELETE",
+  });
+
+  setCodes(prev => prev.filter(c => c !== code));
+};
+
 
   /* ---------------- IMAGE UPLOAD ---------------- */
   const handleImages = (files, isCbt = false) => {
@@ -112,42 +127,47 @@ export default function Admin() {
   };
 
   /* ---------------- SAVE HOME QUESTION ---------------- */
-  const saveQuestion = () => {
-    if (!subject || !questionText) {
-      alert("Subject and Question are required");
-      return;
-    }
-    const newQuestion = {
-      id: Date.now(),
-      exam,
-      subject,
-      type,
-      year,
-      text: questionText,
-      answer: answerText || "",
-      images,
-      isTest,
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [newQuestion, ...questions];
-    setQuestions(updated);
-    saveQuestions(updated);
+ const saveQuestion = async () => {
+  if (!subject || !questionText) {
+    alert("Subject and Question required");
+    return;
+  }
 
-    setQuestionText("");
-    setAnswerText("");
-    setImages([]);
-    setIsTest(false);
-    setSubject("");
-    setType("Objective");
-    alert("Question saved successfully for CBT");
+  const payload = {
+    exam,
+    subject,
+    type,
+    year,
+    text: questionText,
+    answer: answerText,
+    images,
+    isTest,
   };
+
+  const saved = await apiFetch("/api/admin/questions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  setQuestions(prev => [saved, ...prev]);
+  setQuestionText("");
+  setAnswerText("");
+  setImages([]);
+};
+
+
+
 
   /* ---------------- DELETE QUESTION ---------------- */
-  const deleteQuestion = (id) => {
-    const updated = questions.filter((q) => q.id !== id);
-    setQuestions(updated);
-    saveQuestions(updated);
-  };
+const deleteQuestion = async (id) => {
+  await apiFetch(`/api/admin/questions?id=${id}`, {
+    method: "DELETE",
+  });
+
+  setQuestions(prev => prev.filter(q => q._id !== id));
+};
+
+
 
   /* ---------------- CBT FUNCTIONS ---------------- */
   const nextCbtQuestion = () => {
@@ -162,39 +182,66 @@ export default function Admin() {
     setCurrentQuestion({ text: "", options: ["", "", "", ""], answer: "", images: [] });
   };
 
-  const saveAllCbtQuestions = () => {
-    if (currentQuestion.text) {
-      setCbtQuestions((prev) => [
-        ...prev,
-        { ...currentQuestion, exam: cbtExam, subject: cbtSubject, type: cbtType, year: cbtYear, id: Date.now() },
-      ]);
-    }
-    const updated = [...allQuestions, ...cbtQuestions];
-    saveQuestions(updated);
-    setAllQuestions(updated);
-    setCbtQuestions([]);
-    setCurrentQuestion({ text: "", options: ["", "", "", ""], answer: "", images: [] });
-    alert("All CBT questions saved successfully!");
-  };
+/* ---------- SAVE ALL CBT QUESTIONS ------------ */
+const saveAllCbtQuestions = async () => {
+  const payload = [...cbtQuestions];
+
+  await apiFetch("/api/admin/tests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  setCbtQuestions([]);
+  alert("CBT questions saved globally");
+};
+
+
+
 
   /* ---------------- LOGIN ---------------- */
-  if (!ok) {
-    return (
-      <div style={{ padding: 40, maxWidth: 400, margin: "auto" }}>
-        <h2>Admin Login</h2>
-        <input
-          type="password"
-          placeholder="Admin PIN"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          style={{ width: "100%", padding: 10 }}
-        />
-        <button style={{ marginTop: 10 }} onClick={() => pin === ADMIN_PIN && setOk(true)}>
-          Login
-        </button>
-      </div>
-    );
+
+const loginAdmin = async () => {
+  try {
+    const res = await apiFetch("/api/auth/admin-login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+
+    localStorage.setItem("token", res.token);
+    setOk(true);
+  } catch (err) {
+    alert("Invalid admin credentials");
   }
+};
+
+
+ if (!ok) {
+  return (
+    <div style={{ padding: 40, maxWidth: 400, margin: "auto" }}>
+      <h2>Admin Login</h2>
+
+      <input
+        placeholder="Admin Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ width: "100%", padding: 10 }}
+      />
+
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        style={{ width: "100%", padding: 10, marginTop: 10 }}
+      />
+
+      <button style={{ marginTop: 10 }} onClick={loginAdmin}>
+        Login
+      </button>
+    </div>
+  );
+}
+
 
   /* ---------------- DASHBOARD ---------------- */
   return (
