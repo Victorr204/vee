@@ -1,31 +1,48 @@
-// Activate.jsx
 import { useState } from "react";
-import { activateTest } from "../utils/auth";
 import { useNavigate } from "react-router-dom";
+import { db } from "../firebase"; // Firebase config
+import { collection, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
 
 export default function Activate() {
   const [code, setCode] = useState("");
   const navigate = useNavigate();
 
- const submit = async () => {
-  const res = await fetch("/api/public/activate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
-  });
+  const submit = async () => {
+    if (!code.trim()) {
+      alert("Enter a code");
+      return;
+    }
 
-  const data = await res.json();
+    try {
+      const codesRef = collection(db, "activationCodes");
+      const q = query(codesRef, where("code", "==", code.trim()));
+      const snapshot = await getDocs(q);
 
-  if (!res.ok) {
-    alert(data.error || "Invalid activation code");
-    return;
-  }
+      if (snapshot.empty) {
+        alert("Invalid activation code");
+        return;
+      }
 
-  activateTest(data.expiresAt); // backend controlled
-  alert("Activation successful!");
-  navigate("/test");
-};
+      const codeDoc = snapshot.docs[0];
+      const data = codeDoc.data();
 
+      if (data.used) {
+        alert("Code already used");
+        return;
+      }
+
+      // Mark code as used
+      await updateDoc(doc(db, "activationCodes", codeDoc.id), { used: true });
+
+      // Activate test (store expiry in localStorage or state)
+      localStorage.setItem("testExpiresAt", data.expiresAt);
+      alert("Activation successful!");
+      navigate("/test");
+    } catch (err) {
+      console.error(err);
+      alert("Error activating code");
+    }
+  };
 
   return (
     <div style={{ maxWidth: 400, margin: "auto", padding: 20 }}>

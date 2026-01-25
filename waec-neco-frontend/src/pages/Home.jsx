@@ -1,116 +1,140 @@
-//home page
+// Home.jsx
 import { useEffect, useState } from "react";
-import { fetchPublicQuestions } from "../utils/api";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { setSEO } from "../utils/seo";
+import { useAuth } from "../context/AuthContext";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase";
+import { fetchPublicQuestions } from "../services/questions";
+
+
 import TopNotification from "../components/TopNotification";
 import banner from "../assets/banner.png";
 import logo from "../assets/logo.png";
 
-
 export default function Home() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
   const [questions, setQuestions] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [showCount, setShowCount] = useState(3);
   const [examFilter, setExamFilter] = useState("ALL");
   const [subjectFilter, setSubjectFilter] = useState("ALL");
-  const [isLoggedIn, setIsLoggedIn] = useState(
-  Boolean(localStorage.getItem("token"))
-);
 
-  /* ================= LOAD FREE QUESTIONS ONLY ================= */
- useEffect(() => {
-  setSEO({
-    title: "EXAM SHARP SCHOOL WAEC & NECO Past Questions (Free & Practice Tests)",
-    description:
-      "Study WAEC & NECO past questions for free. Practice tests available. Community discussion included.",
-  });
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  async function loadQuestions() {
-    try {
-      const data = await fetchPublicQuestions();
+  /* ================= SEO ================= */
+  useEffect(() => {
+    setSEO({
+      title: "EXAM SHARP SCHOOL WAEC & NECO Past Questions",
+      description:
+        "Study WAEC & NECO past questions for free. Practice tests available. Community discussion included.",
+    });
+  }, []);
 
-      // backend already filters free, but double-safety
-      const freeOnly = data.filter(q => q.isTest === false);
-
-      setQuestions(freeOnly);
-      setFiltered(freeOnly);
-    } catch (err) {
-      console.error(err);
+  /* ================= LOAD QUESTIONS ================= */
+  useEffect(() => {
+    async function loadQuestions() {
+      try {
+        const data = await fetchPublicQuestions();
+        const freeOnly = data.filter((q) => q.isTest === false);
+        setQuestions(freeOnly);
+        setFiltered(freeOnly);
+      } catch (err) {
+        console.error(err);
+      }
     }
-  }
+    loadQuestions();
+  }, []);
 
-  loadQuestions();
-}, []);
-
-
-
-
-  /* ================= APPLY FILTER ================= */
+  /* ================= FILTER ================= */
   const applyFilter = (exam, subject) => {
-    let data = [...questions]; // questions === FREE ONLY
-
-    if (exam !== "ALL") {
-      data = data.filter(q => q.exam === exam);
-    }
-
-    if (subject !== "ALL") {
-      data = data.filter(q => q.subject === subject);
-    }
-
+    let data = [...questions];
+    if (exam !== "ALL") data = data.filter((q) => q.exam === exam);
+    if (subject !== "ALL") data = data.filter((q) => q.subject === subject);
     setFiltered(data);
   };
-  /* ================= SHOW MORE ================= */
+
+   /* ================= SHOW MORE ================= */
   const showMore = () => setShowCount(prev => prev + 3);
 
   /* ================= UNIQUE SUBJECTS ================= */
   const subjects = [...new Set(questions.map(q => q.subject))];
-  
+
+   /* ================= LOGOUT ================= */
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate("/");
+  };
 
   return (
     <div style={styles.page}>
-      
       {/* ================= HEADER ================= */}
       <header style={styles.header}>
-        <h2 style={{ margin: 0 }}> <img src={logo} style={styles.logo} alt="logo" /> </h2>
+        <img src={logo} style={styles.logo} alt="logo" />
+                {/* Desktop Nav */}
+        <nav style={styles.navDesktop}>
+          <Link to="/" style={styles.navLink}>Home</Link>
+          <Link to="/test" style={styles.navLink}>Practice Test</Link>
+          <Link to="/community" style={styles.navLink}>Community</Link>
 
-        <nav style={styles.nav}>
-  <Link to="/" style={styles.navLink}>Home</Link>
-  <Link to="/test" style={styles.navLink}>Practice Test</Link>
-  <Link to="/community" style={styles.navLink}>Community</Link>
+          {!user ? (
+            <>
+              <Link to="/login" style={styles.navLink}>Login</Link>
+              <Link to="/register" style={styles.navLink}>Register</Link>
+            </>
+          ) : (
+            <>
+              <Link to="/profile" style={styles.navLink}>Profile</Link>
+              <button onClick={handleLogout} style={styles.logoutBtn}>
+                Logout
+              </button>
+            </>
+          )}
+        </nav>
 
-  {!isLoggedIn ? (
-    <>
-      <Link to="/login" style={styles.navLink}>Login</Link>
-      <Link to="/register" style={styles.navLink}>Register</Link>
-    </>
-  ) : (
-    <button
-      style={styles.logoutBtn}
-      onClick={() => {
-  localStorage.clear();
-  setIsLoggedIn(false);
-  navigate("/");
-}}
-
-    >
-      Logout
-    </button>
-  )}
-</nav>
-
+        {/* Mobile Hamburger */}
+        <button
+          onClick={() => setMenuOpen(!menuOpen)}
+          style={styles.hamburger}
+        >
+          ☰
+        </button>
       </header>
 
-      {/* ================= TOP AD ================= */}
+      {/* ================= MOBILE MENU ================= */}
+      {menuOpen && (
+        <div style={styles.mobileMenu}>
+          <Link to="/" onClick={() => setMenuOpen(false)}>Home</Link>
+          <Link to="/test" onClick={() => setMenuOpen(false)}>Practice Test</Link>
+          <Link to="/community" onClick={() => setMenuOpen(false)}>Community</Link>
+
+          {!user ? (
+            <>
+              <Link to="/login" onClick={() => setMenuOpen(false)}>Login</Link>
+              <Link to="/register" onClick={() => setMenuOpen(false)}>Register</Link>
+            </>
+          ) : (
+            <>
+              <Link to="/profile" onClick={() => setMenuOpen(false)}>Profile</Link>
+              <button onClick={handleLogout} style={styles.mobileLogout}>
+                Logout
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ================= TOP ================= */}
       <div style={styles.adBanner}>
         <TopNotification />
       </div>
 
       {/* ================= HERO ================= */}
       <section style={styles.hero}>
-        <h1><img src={banner} style={styles.banner} alt="banner" /></h1>
+        <img src={banner} style={styles.banner} alt="banner" />
         <p>Study freely. Practice smarter. Test yourself when ready.</p>
-
         <Link to="/test">
           <button style={styles.primaryBtn}>Take Practice Test</button>
         </Link>
@@ -118,14 +142,15 @@ export default function Home() {
 
       {/* ================= QUESTIONS ================= */}
       <section style={styles.container}>
-        <h2 style={styles.sectionTitle}>Past Questions (Free)</h2>
+        <h2>Past Questions (Free)</h2>
 
-        {/* FILTERS */}
         <div style={styles.filters}>
           <select
             value={examFilter}
-            onChange={(e) => { const v = e.target.value; setExamFilter(v); applyFilter(v, subjectFilter); }}
-            style={styles.filterSelect}
+            onChange={(e) => {
+              setExamFilter(e.target.value);
+              applyFilter(e.target.value, subjectFilter);
+            }}
           >
             <option value="ALL">All Exams</option>
             <option value="WAEC">WAEC</option>
@@ -134,37 +159,33 @@ export default function Home() {
 
           <select
             value={subjectFilter}
-            onChange={(e) => { const v = e.target.value; setSubjectFilter(v); applyFilter(examFilter, v); }}
-            style={styles.filterSelect}
+            onChange={(e) => {
+              setSubjectFilter(e.target.value);
+              applyFilter(examFilter, e.target.value);
+            }}
           >
             <option value="ALL">All Subjects</option>
-            {subjects.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+            {subjects.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
           </select>
         </div>
 
-        {filtered.length === 0 && <p>No questions match your filter.</p>}
-
-        {/* ✅ SHOW LIMITED QUESTIONS */}
-        {filtered.slice(0, showCount).map((q, index) => (
-          <div key={q._id} style={styles.card}>
-            <h3>{index + 1}. {q.subject} — {q.exam} {q.type} ({q.year})</h3>
-            <p style={{ whiteSpace: "pre-line" }}>{q.text}</p>
-            {q.images?.map((img, i) => <img key={i} src={img} alt="question" style={styles.image} />)}
-            {q.answer && (
-              <div style={styles.answer}>
-                <strong>Answer:</strong><br />{q.answer}
-              </div>
-            )}
+        {filtered.slice(0, showCount).map((q, i) => (
+          <div key={q.id} style={styles.card}>
+            <h3>{i + 1}. {q.subject} — {q.exam}</h3>
+            <p>{q.text}</p>
           </div>
         ))}
 
-        {/* Show More Button */}
         {showCount < filtered.length && (
-          <button style={styles.secondaryBtn} onClick={showMore}>More Questions</button>
+          <button style={styles.secondaryBtn} onClick={() => setShowCount(p => p + 3)}>
+            More Questions
+          </button>
         )}
       </section>
 
-      {/* ================= MORE FOR YOU ================= */}
+       {/* ================= MORE FOR YOU ================= */}
       <section style={styles.moreForYou}>
         <h2>More For You</h2>
         <p>Click a subject to view related questions:</p>
@@ -225,47 +246,106 @@ export default function Home() {
           <Link to="/admin">Admin</Link>
         </p>
       </footer>
+
     </div>
   );
 }
 
 /* ================= STYLES ================= */
-
 const styles = {
-  page: {
-    background: "#0f0f0f",
-    color: "#fff",
-  },
+  page: { background: "#0f0f0f", color: "#fff" },
 
   header: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: "15px 20px",
+    padding: 15,
     background: "#111827",
     position: "sticky",
     top: 0,
     zIndex: 100,
   },
 
-  nav: {
+  hamburger: {
+    marginLeft: "auto",
+    fontSize: 22,
+    background: "none",
+    color: "#fff",
+    border: "none",
+    display: "none",
+  },
+   navDesktop: {
     display: "flex",
     gap: 15,
   },
 
-  navLink: {
+  
+  mobileMenu: {
+    background: "#020617",
+    padding: 15,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+
+  mobileLogout: {
+    background: "#ef4444",
+    border: "none",
+    padding: 10,
+    borderRadius: 6,
     color: "#fff",
-    textDecoration: "none",
-    fontSize: 14,
+  },
+
+  nav: {
+    display: "flex",
+    gap: 15,
+    marginLeft: "auto",
+  },
+
+  navOpen: {
+    position: "absolute",
+    top: 60,
+    right: 10,
+    background: "#111827",
+    flexDirection: "column",
+    padding: 15,
+  },
+
+  navLink: { color: "#fff", textDecoration: "none" },
+
+  logoutBtn: {
+    background: "transparent",
+    border: "1px solid #ef4444",
+    color: "#ef4444",
+    padding: "6px 10px",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
+
+
+
+  primaryBtn: {
+    background: "#2563eb",
+    color: "#fff",
+    padding: "12px 25px",
+    border: "none",
+    borderRadius: 6,
+  },
+
+  secondaryBtn: {
+    background: "#10b981",
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: 6,
   },
 
   adBanner: {
     background: "#1f2937",
-    padding: 15,
+    padding: 10,
     textAlign: "center",
   },
 
-  hero: {
+
+hero: {
     textAlign: "center",
     padding: "40px 20px",
   },
@@ -315,23 +395,7 @@ const styles = {
     marginTop: 12,
   },
 
-  primaryBtn: {
-    padding: "14px 30px",
-    backgroundColor: "#2563eb",
-    color: "#fff",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-  },
 
-  secondaryBtn: {
-    padding: "12px 25px",
-    background: "#10b981",
-    color: "#000",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-  },
 
   inlineAd: {
     maxWidth: 900,
@@ -370,14 +434,12 @@ const styles = {
     width: '40%',
     height: 'auto',
   },
-  logoutBtn: {
-  background: "transparent",
-  border: "1px solid #ef4444",
-  color: "#ef4444",
-  padding: "6px 10px",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 13,
-},
+ 
 
+};
+
+/* ================= MOBILE ================= */
+styles["@media(max-width: 768px)"] = {
+  navDesktop: { display: "none" },
+  hamburger: { display: "block" },
 };

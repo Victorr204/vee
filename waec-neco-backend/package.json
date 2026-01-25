@@ -1,5 +1,32 @@
 {
   "dependencies": {
-    "openai": "^6.15.0"
-  }
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^7.0.0",
+    "mongoose": "^9.1.2",
+    "openai": "^6.16.0"
+  },
+  "name": "waec-neco-backend",
+  "version": "1.0.0",
+  "description": "Exam sharp school backend",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Victorr204/waec-neco-backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Victorr204/waec-neco-backend/issues"
+  },
+  "homepage": "https://github.com/Victorr204/waec-neco-backend#readme"
 }

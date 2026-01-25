@@ -1,16 +1,20 @@
-//test page
+// Test.jsx
 import { useEffect, useState, useRef } from "react";
-import { apiFetch } from "../services/api";
 import { useNavigate } from "react-router-dom";
 import { setSEO } from "../utils/seo";
+import { useAuth } from "../context/AuthContext";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../firebase";
 
 const optionLetters = ["A", "B", "C", "D", "E"];
 
-
 export default function Test() {
   const navigate = useNavigate();
+  const { user, userData, loading } = useAuth();
+
 
   /* ----------------- STATE ----------------- */
+  
   const [allQuestions, setAllQuestions] = useState([]);
   const [filteredQuestions, setFilteredQuestions] = useState([]);
   const [subject, setSubject] = useState("ALL");
@@ -27,59 +31,66 @@ export default function Test() {
   const timerRef = useRef(null);
   const [score, setScore] = useState(0);
   const [showReview, setShowReview] = useState(false);
-
   const [showCalculator, setShowCalculator] = useState(false);
   const [calcInput, setCalcInput] = useState("");
 
-  /* ----------------- SEO + LOAD ----------------- */
+  /* ----------------- SEO + LOAD QUESTIONS ----------------- */
  useEffect(() => {
   setSEO({
     title: "EXAM SHARP SCHOOL CBT Test | WAEC & NECO",
     description: "Interactive CBT system for WAEC & NECO past questions",
   });
 
-  async function loadTests() {
-    const token = localStorage.getItem("token");
+  // ⛔ Wait until Firebase finishes restoring session
+  if (loading) return;
 
-    if (!token) {
-      navigate("/login", { replace: true });
-      return;
-    }
+  // 🔒 Not logged in → go to login
+  if (!user) {
+    navigate("/login", { replace: true });
+    return;
+  }
 
+  // 🔥 Logged in but no Firestore profile OR not activated
+  if (!userData || userData.activated !== true) {
+    navigate("/activate", { replace: true });
+    return;
+  }
+
+  // ✅ User is logged in AND activated → load questions
+  async function loadQuestions() {
     try {
-      // validate user
-      await apiFetch("/api/auth/me");
+      const qSnapshot = await getDocs(collection(db, "cbtQuestions"));
+      const questions = qSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-      // fetch CBT questions
-      const data = await apiFetch("/api/public/tests");
-
-      setAllQuestions(data);
-      setFilteredQuestions(data);
+      setAllQuestions(questions);
+      setFilteredQuestions(questions);
     } catch (err) {
-      console.error(err);
-      navigate("/login", { replace: true });
+      console.error("Error loading test questions:", err);
     }
   }
 
-  loadTests();
-}, []);
+  loadQuestions();
+
+}, [user, userData, loading, navigate]);
 
 
   /* =======AI EXPLANATION FUNCTION ======= */
   const getAIExplanation = async (q) => {
-apiFetch("/api/ai", {
-  method: "POST",
-  body: JSON.stringify({
-    question: q.text,
-    options: q.options,
-    correctAnswer: q.answer,
-    }),
-  });
+    const res = await fetch("https://waec-neco-backend.vercel.app/api/ai", {
+      method: "POST",
+      body: JSON.stringify({
+        question: q.text,
+        options: q.options,
+        correctAnswer: q.answer,
+      }),
+    });
 
-  const data = await res.json();
-  return data.explanation;
-};
-
+    const data = await res.json();
+    return data.explanation;
+  };
 
   /* ----------------- FILTERS ----------------- */
   const applyFilters = () => {
@@ -93,7 +104,7 @@ apiFetch("/api/ai", {
 
   useEffect(() => {
     applyFilters();
-  }, [subject, exam, year, numQuestions]);
+  }, [subject, exam, year, numQuestions, allQuestions]);
 
   /* ----------------- TIMER ----------------- */
   useEffect(() => {
@@ -111,7 +122,7 @@ apiFetch("/api/ai", {
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
-  }, [started]);
+  }, [started, mode, timeMinutes]);
 
   /* ----------------- ANSWERS ----------------- */
   const handleAnswer = (qid, value) => {
@@ -125,9 +136,7 @@ apiFetch("/api/ai", {
     filteredQuestions.forEach((q) => {
       if (!q.options) return;
 
-      const correctIndex = optionLetters.indexOf(
-        q.answer?.toUpperCase()
-      );
+      const correctIndex = optionLetters.indexOf(q.answer?.toUpperCase());
       const userIndex = q.options.indexOf(answers[q.id]);
 
       if (correctIndex === userIndex) correct += 1;
@@ -139,27 +148,26 @@ apiFetch("/api/ai", {
 
   /* ----------------- FETCH AI EXPLANATION ----------------- */
   const fetchAIExplanation = async (q) => {
-  if (aiExplanations[q.id]) return;
+    if (aiExplanations[q.id]) return;
 
-  setAIExplanations(prev => ({
-    ...prev,
-    [q.id]: "Loading explanation...",
-  }));
-
-  try {
-    const explanation = await getAIExplanation(q);
-    setAIExplanations(prev => ({
+    setAIExplanations((prev) => ({
       ...prev,
-      [q.id]: explanation,
+      [q.id]: "Loading explanation...",
     }));
-  } catch {
-    setAIExplanations(prev => ({
-      ...prev,
-      [q.id]: "Failed to load explanation.",
-    }));
-  }
-};
 
+    try {
+      const explanation = await getAIExplanation(q);
+      setAIExplanations((prev) => ({
+        ...prev,
+        [q.id]: explanation,
+      }));
+    } catch {
+      setAIExplanations((prev) => ({
+        ...prev,
+        [q.id]: "Failed to load explanation.",
+      }));
+    }
+  };
 
   /* ----------------- CALCULATOR ----------------- */
   const handleCalcClick = (val) => {
@@ -187,7 +195,6 @@ apiFetch("/api/ai", {
     return (
       <div style={styles.container}>
         <h2>Start CBT</h2>
-
         <div style={styles.filtersContainer}>
           <label>
             Mode:
@@ -221,15 +228,7 @@ apiFetch("/api/ai", {
             Year:
             <select value={year} onChange={(e) => setYear(e.target.value)}>
               <option>ALL</option>
-              {[
-                ...new Set(
-                  allQuestions
-                    .filter(
-                      (q) => subject === "ALL" || q.subject === subject
-                    )
-                    .map((q) => q.year)
-                ),
-              ].map((y) => (
+              {[...new Set(allQuestions.map((q) => q.year))].map((y) => (
                 <option key={y}>{y}</option>
               ))}
             </select>
@@ -277,10 +276,8 @@ apiFetch("/api/ai", {
         </p>
 
         {filteredQuestions.map((q, i) => {
-          const correctIndex = optionLetters.indexOf(
-            q.answer?.toUpperCase()
-          );
-          const userIndex = q.options?.indexOf(answers[q._id]);
+          const correctIndex = optionLetters.indexOf(q.answer?.toUpperCase());
+          const userIndex = q.options?.indexOf(answers[q.id]);
 
           return (
             <div
@@ -300,25 +297,18 @@ apiFetch("/api/ai", {
 
               <p>
                 <b>Your Answer:</b>{" "}
-                {userIndex > -1
-                  ? `${optionLetters[userIndex]}. ${answers[q._id]}`
-                  : "No Answer"}
+                {userIndex > -1 ? `${optionLetters[userIndex]}. ${answers[q.id]}` : "No Answer"}
               </p>
               <p>
-                <b>Correct Answer:</b>{" "}
-                {optionLetters[correctIndex]}. {q.options?.[correctIndex]}
+                <b>Correct Answer:</b> {optionLetters[correctIndex]}. {q.options?.[correctIndex]}
               </p>
 
               <p>
-                <b>Explanation:</b>{" "}
-                {aiExplanations[q._id] || "Click 'Show Explanation' to view"}
+                <b>Explanation:</b> {aiExplanations[q.id] || "Click 'Show Explanation' to view"}
               </p>
 
               {mode === "Practice" && !aiExplanations[q.id] && (
-                <button
-                  style={styles.secondaryBtn}
-                  onClick={() => fetchAIExplanation(q)}
-                >
+                <button style={styles.secondaryBtn} onClick={() => fetchAIExplanation(q)}>
                   Show Explanation
                 </button>
               )}
@@ -326,10 +316,7 @@ apiFetch("/api/ai", {
           );
         })}
 
-        <button
-          onClick={() => window.location.reload()}
-          style={styles.primaryBtn}
-        >
+        <button onClick={() => window.location.reload()} style={styles.primaryBtn}>
           Restart Test
         </button>
       </div>
@@ -343,27 +330,22 @@ apiFetch("/api/ai", {
       <h3>
         {q.subject} — {q.exam} ({q.type})
       </h3>
-
       <p>{q.text}</p>
 
       {q.options && (
         <div>
           {q.options.map((opt, i) => {
-            const correctIndex = optionLetters.indexOf(
-              q.answer?.toUpperCase()
-            );
+            const correctIndex = optionLetters.indexOf(q.answer?.toUpperCase());
             const isSelected = answers[q.id] === opt;
 
             let bg = "#2563eb";
-            if (mode === "Practice" && isSelected && i === correctIndex)
-              bg = "#10b981";
-            else if (mode === "Practice" && isSelected)
-              bg = "#c0392b";
+            if (mode === "Practice" && isSelected && i === correctIndex) bg = "#10b981";
+            else if (mode === "Practice" && isSelected) bg = "#c0392b";
 
             return (
               <button
                 key={i}
-                onClick={() => handleAnswer(q._id, opt)}
+                onClick={() => handleAnswer(q.id, opt)}
                 style={{ ...styles.optionBtn, backgroundColor: bg }}
               >
                 {optionLetters[i]}. {opt}
@@ -374,33 +356,20 @@ apiFetch("/api/ai", {
       )}
 
       {mode === "Practice" && (
-  <>
-    <button
-      onClick={() => fetchAIExplanation(q)}
-      style={styles.secondaryBtn}
-    >
-      Show Explanation
-    </button>
-
-    {aiExplanations[q._id] && (
-      <div style={styles.explanation}>
-        {aiExplanations[q._id]}
-      </div>
-    )}
-  </>
-)}
-
+        <>
+          <button onClick={() => fetchAIExplanation(q)} style={styles.secondaryBtn}>
+            Show Explanation
+          </button>
+          {aiExplanations[q.id] && <div style={styles.explanation}>{aiExplanations[q.id]}</div>}
+        </>
+      )}
 
       <div style={styles.navigation}>
-        {currentIndex > 0 && (
-          <button onClick={() => setCurrentIndex(currentIndex - 1)}>Prev</button>
-        )}
+        {currentIndex > 0 && <button onClick={() => setCurrentIndex(currentIndex - 1)}>Prev</button>}
         {currentIndex < filteredQuestions.length - 1 && (
           <button onClick={() => setCurrentIndex(currentIndex + 1)}>Next</button>
         )}
-        {currentIndex === filteredQuestions.length - 1 && (
-          <button onClick={finishTest}>Finish</button>
-        )}
+        {currentIndex === filteredQuestions.length - 1 && <button onClick={finishTest}>Finish</button>}
       </div>
     </div>
   );
@@ -408,11 +377,7 @@ apiFetch("/api/ai", {
 
 /* ----------------- STYLES ----------------- */
 const styles = {
-  container: {
-    maxWidth: 900,
-    margin: "auto",
-    padding: 20,
-  },
+  container: { maxWidth: 900, margin: "auto", padding: 20 },
   primaryBtn: {
     padding: "10px 20px",
     background: "#2563eb",
@@ -439,25 +404,21 @@ const styles = {
     width: "100%",
     cursor: "pointer",
   },
-  navigation: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginTop: 15,
-  },
+  navigation: { display: "flex", 
+    justifyContent: "space-between", 
+    marginTop: 15 },
   filtersContainer: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
     gap: 12,
     marginBottom: 25,
   },
-
   explanation: {
-  marginTop: 10,
-  padding: 12,
-  background: "#111827",
-  color: "#e5e7eb",
-  borderRadius: 6,
-  lineHeight: 1.6,
-}
-
+    marginTop: 10,
+    padding: 12,
+    background: "#111827",
+    color: "#e5e7eb",
+    borderRadius: 6,
+    lineHeight: 1.6,
+  },
 };

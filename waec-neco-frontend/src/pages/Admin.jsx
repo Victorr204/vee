@@ -1,19 +1,30 @@
-//admin page
+// Admin.jsx
 import { useEffect, useState } from "react";
 import { SUBJECTS, PRACTICAL_SUBJECTS } from "../data/config";
-import { apiFetch } from "../services/api";
-
-
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { db, storage } from "../firebase"; // your Firebase config
+import {
+  collection,
+  addDoc,
+  getDocs,
+  setDoc,
+  doc,
+  deleteDoc,
+} from "firebase/firestore";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 
 export default function Admin() {
   /* ---------------- AUTH ---------------- */
   const [email, setEmail] = useState("");
-const [password, setPassword] = useState("");
-const [ok, setOk] = useState(false);
+  const [password, setPassword] = useState("");
+  const [ok, setOk] = useState(false);
+
+  const auth = getAuth();
 
   /* ---------------- DATA ---------------- */
   const [questions, setQuestions] = useState([]);
   const [codes, setCodes] = useState([]);
+  const [active, setActive] = useState(null);
 
   /* ---------------- FORM (Home/Old) ---------------- */
   const [exam, setExam] = useState("WAEC");
@@ -24,12 +35,6 @@ const [ok, setOk] = useState(false);
   const [questionText, setQuestionText] = useState("");
   const [answerText, setAnswerText] = useState("");
   const [images, setImages] = useState([]);
-
-
-  /* ----------------ADMIN NOTIFICATION ---------------- */
-  const [message, setMessage] = useState("");
-  const [duration, setDuration] = useState(60);
-  const [active, setActive] = useState(null);
 
   /* ---------------- FORM (CBT) ---------------- */
   const [cbtExam, setCbtExam] = useState("WAEC");
@@ -44,130 +49,131 @@ const [ok, setOk] = useState(false);
     images: [],
   });
   const [cbtQuestions, setCbtQuestions] = useState([]);
-  const [allQuestions, setAllQuestions] = useState([]);
 
-  
-
-
-  /* =========Notifications================= */
-const postNotification = async () => {
-  const res = await apiFetch("/api/admin/notifications", {
-    method: "POST",
-    body: JSON.stringify({ message, duration }),
-  });
-
-  setActive(res);
-  setMessage("");
-};
-
-/* ---------------- DELETE NOTIFICATION ---------------- */
- const deleteNotification = async () => {
-  await apiFetch("/api/admin/notifications", { method: "DELETE" });
-  setActive(null);
-};
-
-
-
-  /* ---------------- LOAD ---------------- */
-  useEffect(() => {
-  async function loadAdminData() {
-    try {
-      const q = await apiFetch("/api/admin/questions");
-      const c = await apiFetch("/api/admin/codes");
-      const n = await apiFetch("/api/admin/notifications");
-
-      setQuestions(q);
-      setAllQuestions(q);
-      setCodes(c);
-      setActive(n);
-    } catch {
-      alert("Unauthorized");
-      localStorage.removeItem("token");
-      window.location.reload();
-    }
-  }
-
-  loadAdminData();
-}, []);
-  
-
-  /* ---------------- ACTIVATION CODES ---------------- */
- const generateCode = async () => {
-  const res = await apiFetch("/api/admin/generate-code", {
-    method: "POST",
-  });
-
-  setCodes(prev => [...prev, res.code]);
-};
-
-
-/* ---------------- DELETE CODE ---------------- */
- const deleteCode = async (code) => {
-  await apiFetch(`/api/admin/generate-code?code=${code}`, {
-    method: "DELETE",
-  });
-
-  setCodes(prev => prev.filter(c => c !== code));
-};
-
+  /* ---------------- ADMIN NOTIFICATION ---------------- */
+  const [message, setMessage] = useState("");
+  const [duration, setDuration] = useState(60);
 
   /* ---------------- IMAGE UPLOAD ---------------- */
   const handleImages = (files, isCbt = false) => {
     Array.from(files).forEach((file) => {
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
+        const base64 = reader.result;
+        // upload to Firebase Storage
+        const storageRef = ref(storage, `questions/${Date.now()}-${file.name}`);
+        await uploadString(storageRef, base64, "data_url");
+        const url = await getDownloadURL(storageRef);
+
         if (isCbt) {
-          setCurrentQuestion((prev) => ({ ...prev, images: [...prev.images, reader.result] }));
+          setCurrentQuestion((prev) => ({
+            ...prev,
+            images: [...prev.images, url],
+          }));
         } else {
-          setImages((prev) => [...prev, reader.result]);
+          setImages((prev) => [...prev, url]);
         }
       };
       reader.readAsDataURL(file);
     });
   };
 
-  /* ---------------- SAVE HOME QUESTION ---------------- */
- const saveQuestion = async () => {
-  if (!subject || !questionText) {
-    alert("Subject and Question required");
-    return;
-  }
+  /* ---------------- LOAD ---------------- */
+  useEffect(() => {
+    if (!ok) return;
 
-  const payload = {
-    exam,
-    subject,
-    type,
-    year,
-    text: questionText,
-    answer: answerText,
-    images,
-    isTest,
+    const loadAdminData = async () => {
+      try {
+        // Load home questions
+        const qSnap = await getDocs(collection(db, "homeQuestions"));
+        setQuestions(qSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+        // Load activation codes
+        const cSnap = await getDocs(collection(db, "activationCodes"));
+        setCodes(cSnap.docs.map((d) => d.data().code));
+
+        // Load notifications
+        const nSnap = await getDocs(collection(db, "notifications"));
+        const n = nSnap.docs[0];
+        if (n) setActive(n.data());
+      } catch (err) {
+        alert("Failed to load admin data");
+      }
+    };
+
+    loadAdminData();
+  }, [ok]);
+
+  /* ---------------- LOGIN ---------------- */
+  const loginAdmin = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      setOk(true);
+    } catch {
+      alert("Invalid admin credentials");
+    }
   };
 
-  const saved = await apiFetch("/api/admin/questions", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  /* ---------------- NOTIFICATIONS ---------------- */
+  const postNotification = async () => {
+    const notifRef = doc(db, "notifications", "active");
+    await setDoc(notifRef, {
+      message,
+      duration,
+      createdAt: new Date().toISOString(),
+    });
+    setActive({ message, duration });
+    setMessage("");
+  };
 
-  setQuestions(prev => [saved, ...prev]);
-  setQuestionText("");
-  setAnswerText("");
-  setImages([]);
-};
+  const deleteNotification = async () => {
+    await deleteDoc(doc(db, "notifications", "active"));
+    setActive(null);
+  };
 
+  /* ---------------- ACTIVATION CODES ---------------- */
+  const generateCode = async () => {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    await addDoc(collection(db, "activationCodes"), { code });
+    setCodes((prev) => [...prev, code]);
+  };
 
+  const deleteCode = async (code) => {
+    const cSnap = await getDocs(collection(db, "activationCodes"));
+    const docToDelete = cSnap.docs.find((d) => d.data().code === code);
+    if (docToDelete) await deleteDoc(doc(db, "activationCodes", docToDelete.id));
+    setCodes((prev) => prev.filter((c) => c !== code));
+  };
 
+  /* ---------------- SAVE HOME QUESTION ---------------- */
+  const saveQuestion = async () => {
+    if (!subject || !questionText) {
+      alert("Subject and Question required");
+      return;
+    }
 
-  /* ---------------- DELETE QUESTION ---------------- */
-const deleteQuestion = async (id) => {
-  await apiFetch(`/api/admin/questions?id=${id}`, {
-    method: "DELETE",
-  });
+    const payload = {
+      exam,
+      subject,
+      type,
+      year,
+      text: questionText,
+      answer: answerText,
+      images,
+      isTest,
+    };
 
-  setQuestions(prev => prev.filter(q => q._id !== id));
-};
+    const docRef = await addDoc(collection(db, "homeQuestions"), payload);
+    setQuestions((prev) => [{ id: docRef.id, ...payload }, ...prev]);
+    setQuestionText("");
+    setAnswerText("");
+    setImages([]);
+  };
 
-
+  const deleteQuestion = async (id) => {
+    await deleteDoc(doc(db, "homeQuestions", id));
+    setQuestions((prev) => prev.filter((q) => q.id !== id));
+  };
 
   /* ---------------- CBT FUNCTIONS ---------------- */
   const nextCbtQuestion = () => {
@@ -182,68 +188,26 @@ const deleteQuestion = async (id) => {
     setCurrentQuestion({ text: "", options: ["", "", "", ""], answer: "", images: [] });
   };
 
-/* ---------- SAVE ALL CBT QUESTIONS ------------ */
-const saveAllCbtQuestions = async () => {
-  const payload = [...cbtQuestions];
+  const saveAllCbtQuestions = async () => {
+    const batch = cbtQuestions.map((q) => addDoc(collection(db, "cbtQuestions"), q));
+    await Promise.all(batch);
+    setCbtQuestions([]);
+    alert("CBT questions saved globally");
+  };
 
-  await apiFetch("/api/admin/tests", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-
-  setCbtQuestions([]);
-  alert("CBT questions saved globally");
-};
-
-
-
-
-  /* ---------------- LOGIN ---------------- */
-
-const loginAdmin = async () => {
-  try {
-    const res = await apiFetch("/api/auth/admin-login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-
-    localStorage.setItem("token", res.token);
-    setOk(true);
-  } catch (err) {
-    alert("Invalid admin credentials");
+  /* ---------------- RENDER ---------------- */
+  if (!ok) {
+    return (
+      <div style={{ padding: 40, maxWidth: 400, margin: "auto" }}>
+        <h2>Admin Login</h2>
+        <input placeholder="Admin Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%", padding: 10 }} />
+        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: "100%", padding: 10, marginTop: 10 }} />
+        <button style={{ marginTop: 10 }} onClick={loginAdmin}>Login</button>
+      </div>
+    );
   }
-};
 
-
- if (!ok) {
-  return (
-    <div style={{ padding: 40, maxWidth: 400, margin: "auto" }}>
-      <h2>Admin Login</h2>
-
-      <input
-        placeholder="Admin Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ width: "100%", padding: 10 }}
-      />
-
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ width: "100%", padding: 10, marginTop: 10 }}
-      />
-
-      <button style={{ marginTop: 10 }} onClick={loginAdmin}>
-        Login
-      </button>
-    </div>
-  );
-}
-
-
-  /* ---------------- DASHBOARD ---------------- */
+   /* ---------------- DASHBOARD ---------------- */
   return (
     <div style={{ maxWidth: 1000, margin: "auto", padding: 20 }}>
       <h2>Admin Dashboard</h2>
@@ -462,3 +426,4 @@ const styles = {
     cursor: "pointer",
   },
 };
+

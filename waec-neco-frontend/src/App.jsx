@@ -3,13 +3,14 @@ import Home from "./pages/Home";
 import Activate from "./pages/Activate";
 import Question from "./pages/Questions";
 import Admin from "./pages/Admin";
-import Community from "./pages/Community";
+import Community from "./community/community";
 import Test from "./pages/Test";
 import Contact from "./pages/Contact";
 import Terms from "./pages/Terms";
 import About from "./pages/About";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Profile from "./pages/Profile";
 import Privacy from "./pages/Privacy";
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/" element={<Home />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/activate" element={<Activate />} />
         <Route path="/question/:id" element={<Question />} />
         <Route path="/admin" element={<Admin />} />

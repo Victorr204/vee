@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { apiFetch } from "../services/api";
 import { useSearchParams } from "react-router-dom";
+import { db } from "../firebase"; // your Firebase config
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function Questions() {
   const [params] = useSearchParams();
@@ -15,14 +16,32 @@ export default function Questions() {
   useEffect(() => {
     if (!exam || !subject || !year) return;
 
-    apiFetch(
-      `/public/questions?exam=${exam}&subject=${subject}&year=${year}&type=${type}`
-    )
-      .then((data) => {
+    const fetchQuestions = async () => {
+      setLoading(true);
+      try {
+        const qRef = collection(db, "homeQuestions");
+        let qQuery = query(
+          qRef,
+          where("exam", "==", exam),
+          where("subject", "==", subject),
+          where("year", "==", parseInt(year))
+        );
+
+        if (type) {
+          qQuery = query(qQuery, where("type", "==", type));
+        }
+
+        const snapshot = await getDocs(qQuery);
+        const data = snapshot.docs.map((doc) => ({ _id: doc.id, ...doc.data() }));
         setQuestions(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
         setLoading(false);
-      })
-      .catch(console.error);
+      }
+    };
+
+    fetchQuestions();
   }, [exam, subject, year, type]);
 
   if (loading) return <p>Loading questions...</p>;
