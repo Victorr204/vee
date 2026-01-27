@@ -16,6 +16,9 @@ import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import AdBlockNotice from "./components/AdBlockNotice";
 import ProtectedRoute from "./components/ProtectedRoute";
+import DesktopLayout from "./ui/layout/DesktopLayout";
+import MobileLayout from "./ui/layout/MobileLayout";
+import PageContainer from "./ui/layout/PageContainer";
 
 function AdsAutoRefresh() {
   const location = useLocation();
@@ -29,6 +32,17 @@ function AdsAutoRefresh() {
 
   return null;
 }
+function Layout({ children }) {
+  const isMobile = window.innerWidth < 768;
+
+  const content = <PageContainer>{children}</PageContainer>;
+
+  return isMobile ? (
+    <MobileLayout>{content}</MobileLayout>
+  ) : (
+    <DesktopLayout>{content}</DesktopLayout>
+  );
+}
 
 
 
@@ -41,7 +55,9 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Layout><Home /></Layout>} />
+        <Route path="/test" element={<Layout><Test /></Layout>} />
+        <Route path="/community" element={<Layout><Community /></Layout>} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/activate" element={<Activate />} />
         <Route path="/question/:id" element={<Question />} />
