@@ -2,9 +2,11 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
+    "firebase-admin": "^13.6.0",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.0.0",
     "mongoose": "^9.1.2",
+    "node-fetch": "^3.3.2",
     "openai": "^6.16.0"
   },
   "name": "waec-neco-backend",
