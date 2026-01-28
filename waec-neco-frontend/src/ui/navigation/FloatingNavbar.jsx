@@ -45,7 +45,7 @@ export default function FloatingNavbar({ user, onLogout }) {
               <Link to="/register">Register</Link>
             </>
           ) : (
-            <Link to="/profile">Profile</Link>
+            <button onClick={onLogout} style={styles.logoutBtn}>Logout</button>
           )}
         </div>
       )}

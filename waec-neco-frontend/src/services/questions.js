@@ -1,17 +1,13 @@
 // src/services/questions.js
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase";
 
 export async function fetchPublicQuestions() {
-  const q = query(
-    collection(db, "homeQuestions"),
-    where("isTest", "==", false)
-  );
-
-  const snapshot = await getDocs(q);
-
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+  try {
+    const res = await fetch("https://waec-neco-backend.vercel.app/api/past-questions");
+    if (!res.ok) throw new Error("Failed to fetch questions");
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.error("fetchPublicQuestions error:", err);
+    return [];
+  }
 }

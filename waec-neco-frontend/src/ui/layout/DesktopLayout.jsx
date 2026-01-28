@@ -4,8 +4,7 @@ export default function DesktopLayout({ children }) {
   return (
     <>
       <FloatingNavbar />
-      {children}
+      <main style={{ paddingTop: 70 }}>{children}</main>
     </>
   );
 }
- 
