@@ -1,20 +1,17 @@
 // firebaseAdmin.js
 import admin from "firebase-admin";
 
-let db;
+if (!admin.apps.length) {
+  // parse private key env stored as one-line JSON
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
-try {
-  if (!admin.apps.length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CONFIG);
-
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
-  }
-
-  db = admin.firestore();
-} catch (error) {
-  console.error("🔥 Firebase Admin Init Error:", error);
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      ...serviceAccount,
+      private_key: serviceAccount.private_key.replace(/\\n/g, "\n"),
+    }),
+  });
 }
 
-export { db };
+export const db = admin.firestore();
+export const auth = admin.auth();
